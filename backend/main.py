@@ -58,7 +58,7 @@ def generate_captcha():
         img = Image.new('RGB', (WIDTH, HEIGHT), color=(255, 255, 255))
         canvas = ImageDraw.Draw(img)
         for _ in range(NUMCHARS):
-            font = ImageFont.truetype(f'{FONT_DIR}/{fonts[randrange(len(fonts))]}', randrange(MINSIZE, MAXSIZE))
+            font = ImageFont.truetype(f'fonts/{fonts[randrange(len(fonts))]}', randrange(MINSIZE, MAXSIZE))
             char = SYMBOL_SET[randrange(len(SYMBOL_SET))]
             captcha += char
             x_pos += randrange(10, MINX)
