@@ -33,6 +33,8 @@ body {
 }
 
 .button {
+  display: block;
+  margin: 1rem auto;
   padding: 0.7rem 1.5rem;
   font-size: 1rem;
   background-color: #2563eb;
@@ -82,21 +84,7 @@ body {
   font-family: monospace;
 }
 
-@media (max-width: 640px) {
-  .captcha-grid {
-    grid-template-columns: 1fr;
-  }
-  .input {
-    width: 100%;
-  }
-  .popup-card {
-    width: 95%;
-  }
-  .results-row {
-    flex-direction: column;
-  }
-}
-
+/* Default grid: 4 columns */
 .captcha-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -142,16 +130,16 @@ body {
   background-color: #334155;
 }
 
+/* Center the final results card */
 .results-card {
   background-color: #0f172a;
   padding: 2rem;
   border-radius: 16px;
   text-align: center;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
-  margin-top: 1rem;
+  margin: 1rem auto;
   animation: fadeInUp 0.6s ease-out;
 }
-
 
 .results-block {
   background-color: #1e293b;
@@ -175,11 +163,6 @@ body {
   margin-top: 1rem;
 }
 
-.center {
-  text-align: center;
-  margin-top: 2rem;
-}
-
 .backdrop {
   position: fixed;
   top: 0;
@@ -194,6 +177,7 @@ body {
   z-index: 50;
 }
 
+/* Center the instruction/results popup */
 .popup-card {
   background-color: #1f2937;
   padding: 2rem;
@@ -203,4 +187,34 @@ body {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   text-align: center;
   z-index: 100;
+  margin: auto;
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 640px) {
+  /* Single-column grid on mobile */
+  .captcha-grid {
+    grid-template-columns: 1fr;
+  }
+  /* Full-width inputs on mobile */
+  .input {
+    width: 100%;
+  }
+  /* Popup width and centering on mobile */
+  .popup-card {
+    width: 95%;
+    margin: auto;
+  }
+}
+
+/* Keyframe animation for results reveal */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
