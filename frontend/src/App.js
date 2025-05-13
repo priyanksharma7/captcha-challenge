@@ -16,7 +16,8 @@ function App() {
   const [username, setUsername] = useState('');
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
-  const [images, setImages] = useState([]);
+  const [cleanImages, setCleanImages] = useState([]);
+  const [noisyImages, setNoisyImages] = useState([]);
   const [truths, setTruths] = useState([]);
   const [userInputs, setUserInputs] = useState([]);
   const [aiAnswers, setAiAnswers] = useState([]);
@@ -47,11 +48,12 @@ function App() {
   const preloadCaptchas = async () => {
     const res = await fetch(`${BASE_URL}/generate?num_images=${NUM_IMAGES}`);
     const data = await res.json();
-    if (!data || !Array.isArray(data.images) || !Array.isArray(data.truths)) {
+    if (!data || !Array.isArray(data.noisy_images) || !Array.isArray(data.clean_images) || !Array.isArray(data.truths)) {
       alert("Error: Couldn't load CAPTCHAs. Please try again.");
       return;
     }
-    setImages(data.images);
+    setNoisyImages(data.noisy_images);
+    setCleanImages(data.clean_images);
     setTruths(data.truths);
     setUserInputs(Array(NUM_IMAGES).fill(''));
     setAiAnswers(Array(NUM_IMAGES).fill('Thinking...'));
@@ -76,7 +78,7 @@ function App() {
     setShowInstructions(false);
     setUserStartTime(Date.now());
     const aiStart = Date.now();
-    const promises = images.map((img, idx) => {
+    const promises = cleanImages.map((img, idx) => {
       return fetch(`${BASE_URL}/solve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -196,7 +198,7 @@ function App() {
           </AnimatePresence>
 
           <div className="captcha-grid" style={{ gridTemplateRows: `repeat(${Math.ceil(NUM_IMAGES / 4)}, 1fr)` }}>
-            {images.map((img, idx) => (
+            {noisyImages.map((img, idx) => (
               <motion.div key={idx} className="captcha-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <img src={img} alt={`captcha-${idx + 1}`} />
                 <input type="text" value={userInputs[idx]} onChange={(e) => handleInputChange(idx, e.target.value)} placeholder="Your answer" />

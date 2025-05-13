@@ -17,14 +17,15 @@ from random import randrange
 WIDTH, HEIGHT = 200, 100
 MINSIZE, MAXSIZE = 24, 48
 MINX, MINY = 20, 20
-MAXX, MAXY = WIDTH - 60, HEIGHT - 60
+MAXY = HEIGHT - 60
 NUMCHARS = 4
 SYMBOL_SIZE = 50
 SYMBOL_SET = "0123456789"
+FONTS_DIR = "fonts"
 RESULTS_FILE = "results.csv"
 
 # === App Setup ===
-app = FastAPI(title="CAPTCHA Solver API", version="1.0")
+app = FastAPI(title="CAPTCHA Solver API", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,29 +45,59 @@ try:
     # Warm-up
     sym_model.predict(np.zeros((NUMCHARS, SYMBOL_SIZE, SYMBOL_SIZE, 3)))
     box_model.predict(np.zeros((1, WIDTH, HEIGHT, 3)))
-    logger.info("✅ Models loaded and warmed up.")
+    logger.info("Models loaded and warmed up.")
 except Exception as e:
-    logger.error(f"❌ Failed to load models: {e}")
+    logger.error(f"Failed to load models: {e}")
     raise RuntimeError("Model initialization failed.")
 
 # === CAPTCHA Generation ===
 def generate_captcha():
-    fonts = [f for f in os.listdir('fonts') if f.endswith(".ttf")]
+    fonts = [f for f in os.listdir(FONTS_DIR) if f.endswith(".ttf")]
     while True:
         x_pos = 0
-        captcha = ''
+        answer = ''
+        char_info_list = []
         img = Image.new('RGB', (WIDTH, HEIGHT), color=(255, 255, 255))
         canvas = ImageDraw.Draw(img)
         for _ in range(NUMCHARS):
-            font = ImageFont.truetype(f'fonts/{fonts[randrange(len(fonts))]}', randrange(MINSIZE, MAXSIZE))
+            font = ImageFont.truetype(f'{FONTS_DIR}/{fonts[randrange(len(fonts))]}', randrange(MINSIZE, MAXSIZE))
             char = SYMBOL_SET[randrange(len(SYMBOL_SET))]
-            captcha += char
+            answer += char
             x_pos += randrange(10, MINX)
             y_pos = randrange(MINY, MAXY)
-            coords = canvas.textbbox((x_pos, y_pos), char, font)
             canvas.text((x_pos, y_pos), char, font=font, fill=(0, 0, 0), anchor="la")
+            char_info_list.append((char, font, x_pos, y_pos))
+            coords = canvas.textbbox((x_pos, y_pos), char, font)
             x_pos = coords[2]
-        yield img, captcha
+
+        noisy_image = Image.new('RGB', (WIDTH, HEIGHT), color=(255, 255, 255))
+        canvas = ImageDraw.Draw(noisy_image)
+        
+        # Add Noise by adding random lines
+        for _ in range(randrange(5, 10)):  # Number of lines
+            x1, y1 = randrange(WIDTH), randrange(HEIGHT)
+            x2, y2 = randrange(WIDTH), randrange(HEIGHT)
+            line_color = tuple(randrange(50, 150) for _ in range(3))  # Grayish lines
+            canvas.line((x1, y1, x2, y2), fill=line_color, width=randrange(1,5))
+
+        for char, font, x_pos, y_pos in char_info_list:
+            char_img = Image.new('RGBA', (100, 100), (255, 255, 255, 0))
+            char_draw = ImageDraw.Draw(char_img)
+            char_draw.text((25, 25), char, font=font, fill=(0, 0, 0))
+            angle = randrange(-70, 70)
+            rotated_char = char_img.rotate(angle, resample=Image.BICUBIC, expand=True)
+            
+            # Extract bounding box from alpha channel to locate the drawn text
+            alpha = rotated_char.getchannel('A')
+            bbox = alpha.getbbox()
+            char_crop = rotated_char.crop(bbox)
+    
+            # Paste on the base canvas
+            composite_layer = Image.new('RGBA', (WIDTH, HEIGHT), (255, 255, 255, 0))
+            composite_layer.paste(char_crop, (x_pos, y_pos))
+            noisy_image = Image.alpha_composite(noisy_image.convert('RGBA'), composite_layer).convert('RGB')
+        
+        yield img, noisy_image, answer
 
 def get_sub_image(image, box):
     return image.crop(box).resize((SYMBOL_SIZE, SYMBOL_SIZE))
@@ -99,16 +130,22 @@ class StoreRequest(BaseModel):
 
 @app.get("/generate")
 def generate(num_images: int = Query(8, ge=1, le=100)):
-    images, truths = [], []
-    generator = generate_captcha()
+    clean_images, noisy_images, truths = [], [], []
     for _ in range(num_images):
-        img, truth = next(generator)
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        img_str = base64.b64encode(buffer.getvalue()).decode()
-        images.append(f"data:image/png;base64,{img_str}")
+        clean_img, noisy_img, truth = next(generate_captcha())
+
+        noisy_buffer = BytesIO()
+        noisy_img.save(noisy_buffer, format="PNG")
+        noisy_str = base64.b64encode(noisy_buffer.getvalue()).decode()
+        noisy_images.append(f"data:image/png;base64,{noisy_str}")
+
+        clean_buffer = BytesIO()
+        clean_img.save(clean_buffer, format="PNG")
+        clean_str = base64.b64encode(clean_buffer.getvalue()).decode()
+        clean_images.append(f"data:image/png;base64,{clean_str}")
+
         truths.append(truth)
-    return {"images": images, "truths": truths}
+    return {"noisy_images": noisy_images, "clean_images": clean_images, "truths": truths}
 
 @app.post("/solve")
 def solve(req: SolveRequest):
