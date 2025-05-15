@@ -40,8 +40,8 @@ logger = logging.getLogger("captcha-api")
 
 # === Model Loading ===
 try:
-    sym_model = tf.keras.models.load_model("models/Symbol_Recognizer-100epochs.keras")
-    box_model = tf.keras.models.load_model("models/BBox_Regressor-100epochs.keras")
+    sym_model = tf.keras.models.load_model("models/Symbol_Recognizer_v2.keras")
+    box_model = tf.keras.models.load_model("models/BBox_Regressor_v2.keras")
     # Warm-up
     sym_model.predict(np.zeros((NUMCHARS, SYMBOL_SIZE, SYMBOL_SIZE, 3)))
     box_model.predict(np.zeros((1, WIDTH, HEIGHT, 3)))
@@ -99,16 +99,29 @@ def generate_captcha():
         
         yield img, noisy_image, answer
 
-def get_sub_image(image, box):
-    return image.crop(box).resize((SYMBOL_SIZE, SYMBOL_SIZE))
+def unnormalize_boxes(boxes):
+    boxes = boxes.copy()
+    boxes[0::4] *= WIDTH
+    boxes[1::4] *= HEIGHT
+    boxes[2::4] *= WIDTH
+    boxes[3::4] *= HEIGHT
+    return boxes
 
-def solve_captcha(image: Image.Image) -> str:
+def expand_box(box, factor=0.05):
+    w, h = box[2] - box[0], box[3] - box[1]
+    x_margin = min(5, factor * w)
+    y_margin = min(5, factor * h)
+    bbox = box + [-x_margin, -y_margin, x_margin, y_margin]
+    return bbox
+
+def solve_captcha(image):
     x = np.asarray(image).astype(np.float32) / 255.0
-    boxes = box_model.predict(x.reshape(1, WIDTH, HEIGHT, 3), verbose=False)[0]
+    y_pred = box_model.predict(x.reshape(-1, HEIGHT, WIDTH, 3), verbose=False)[0]
+    boxes = unnormalize_boxes(y_pred)
     sub_images = []
     for i in range(NUMCHARS):
         box = boxes[4*i:4*(i+1)]
-        sub_img = get_sub_image(image, box)
+        sub_img = image.crop(expand_box(box)).resize((SYMBOL_SIZE, SYMBOL_SIZE))
         tensor = np.asarray(sub_img).astype(np.float32) / 255.0
         sub_images.append(tensor.reshape(SYMBOL_SIZE, SYMBOL_SIZE, 3))
     batch = np.stack(sub_images)
@@ -161,7 +174,7 @@ def solve(req: SolveRequest):
 @app.post("/store")
 def store(data: StoreRequest):
     record = {
-        "username": data.username,
+        "username": data.username.strip(),
         "userscore": data.userscore,
         "usertime": data.usertime,
         "ai_score": data.ai_score,
