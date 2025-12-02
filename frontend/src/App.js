@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 
-const BASE_URL = import.meta.env.BACKEND_URL || 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const NUM_IMAGES = 8;
 
 function formatTime(ms) {
